@@ -6,6 +6,11 @@
 </head>
 <body>
   <h1>テスト(1)</h1>
+    <form oninput="total.value = Number(price.value) * Number(num.value)">
+    <p><label>単価(円)：<input name="price" type="number" step="any"></label></p>
+    <p><label>数(個)：<input name="num" type="number" step="any"></label></p>
+    <p><label>合計(円):<output name="total" for="price num"></output></label></p>
+</form>
   <h1>テスト(1)</h1>  
 </body>
 </html>
