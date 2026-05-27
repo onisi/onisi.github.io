@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>簡易MQTTクライアント</title>
+    <!-- MQTT.js ライブラリの読み込み -->
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <style>
+        body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; }
+        .box { border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; border-radius: 5px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"] { width: 100%; padding: 8px; margin-bottom: 10px; box-sizing: border-box; }
+        button { padding: 8px 15px; cursor: pointer; background: #27ae60; color: white; border: none; border-radius: 4px; }
+        button:disabled { background: #ccc; }
+        button.stop { background: #e74c3c; }
+        #log { background: #f4f4f4; height: 200px; overflow-y: scroll; padding: 10px; border: 1px solid #ddd; font-family: monospace; }
+        .msg { margin-bottom: 5px; border-bottom: 1px dashed #ddd; padding-bottom: 2px; }
+        .sys { color: #888; font-style: italic; }
+        .recv { color: #d35400; }
+        .sent { color: #2980b9; }
+    </style>
+</head>
+<body>
+    <h2>📡 簡易MQTTクライアント</h2>
+
+    <div class="box">
+        <label>1. 接続設定 (WebSocket)</label>
+        <input type="text" id="brokerUrl" value=""
+               placeholder="ws://（接続先URLを入力 — Section 4 参照）">
+        <button id="btnConnect" onclick="connect()">接続</button>
+        <button id="btnDisconnect" onclick="disconnect()" class="stop" disabled>切断</button>
+        <div style="font-size:0.8em; color:#666; margin-top:5px;">
+            ※ブラウザからは ws:// または wss:// で始まるWebSocket接続のみ可能です。
+        </div>
+    </div>
+
+    <div class="box">
+        <label>2. 受信設定 (Subscribe)</label>
+        <input type="text" id="subTopic" value="PBLALL"
+               placeholder="トピック名 (例: PBLALL)">
+        <button id="btnSub" onclick="subscribe()" disabled>購読開始</button>
+    </div>
+
+    <div class="box">
+        <label>3. 送信 (Publish)</label>
+        <input type="text" id="pubTopic" value="AXY99123/test"
+               placeholder="宛先トピック (例: AXY99123/test)">
+        <input type="text" id="pubMsg"
+               placeholder="メッセージ (例: Hello from PC)">
+        <button id="btnPub" onclick="publish()" disabled>送信</button>
+    </div>
+
+    <div id="log"></div>
+
+    <script>
+        let client = null;
+
+        function log(msg, type='sys') {
+            const el = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            el.innerHTML += `<div class="msg ${type}">[${time}] ${msg}</div>`;
+            el.scrollTop = el.scrollHeight;
+        }
+
+        function connect() {
+            const url = document.getElementById('brokerUrl').value;
+            log(`接続中... ${url}`);
+            const options = {
+                clientId: 'WebClient_' + Math.random().toString(16).substr(2, 8)
+            };
+            client = mqtt.connect(url, options);
+            client.on('connect', () => {
+                log(`✅ 接続成功！ (ID: ${options.clientId})`);
+                document.getElementById('btnConnect').disabled = true;
+                document.getElementById('btnDisconnect').disabled = false;
+                document.getElementById('btnSub').disabled = false;
+                document.getElementById('btnPub').disabled = false;
+            });
+            client.on('message', (topic, message) => {
+                log(`📩 [${topic}]: ${message.toString()}`, 'recv');
+            });
+            client.on('error', (err) => {
+                log(`❌ エラー: ${err.message}`);
+                disconnect();
+            });
+            client.on('close', () => {
+                log('🔌 切断されました');
+                setDisconnectedState();
+            });
+        }
+
+        function disconnect() {
+            if (client) { client.end(); client = null; }
+            setDisconnectedState();
+        }
+
+        function setDisconnectedState() {
+            document.getElementById('btnConnect').disabled = false;
+            document.getElementById('btnDisconnect').disabled = true;
+            document.getElementById('btnSub').disabled = true;
+            document.getElementById('btnPub').disabled = true;
+        }
+
+        function subscribe() {
+            const topic = document.getElementById('subTopic').value;
+            if (client) {
+                client.subscribe(topic, (err) => {
+                    if (!err) log(`👀 購読開始: ${topic}`);
+                });
+            }
+        }
+
+        function publish() {
+            const topic = document.getElementById('pubTopic').value;
+            const msg   = document.getElementById('pubMsg').value;
+            if (client && topic && msg) {
+                client.publish(topic, msg);
+                log(`📤 送信: ${topic} -> ${msg}`, 'sent');
+            }
+        }
+    </script>
+</body>
+</html>
