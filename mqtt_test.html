@@ -18,35 +18,40 @@
         .sys { color: #888; font-style: italic; }
         .recv { color: #d35400; }
         .sent { color: #2980b9; }
+        .warn { color: #c0392b; font-weight: bold; }
     </style>
 </head>
 <body>
     <h2>📡 簡易MQTTクライアント</h2>
 
     <div class="box">
+        <label>0. 学籍番号（クライアントID生成に使用）</label>
+        <input type="text" id="studentId" placeholder="学籍番号を入力 (例: AXY99123)" style="margin-bottom:4px;">
+        <div style="font-size: 0.8em; color: #666;">
+            ※ 入力するとクライアントIDに学籍番号が含まれ、他の人との重複を防げます。接続前に入力してください。
+        </div>
+    </div>
+
+    <div class="box">
         <label>1. 接続設定 (WebSocket)</label>
-        <input type="text" id="brokerUrl" value=""
-               placeholder="ws://（接続先URLを入力 — Section 4 参照）">
+        <input type="text" id="brokerUrl" value="" placeholder="ws://（接続先URLを入力 — Section 4 参照）">
         <button id="btnConnect" onclick="connect()">接続</button>
         <button id="btnDisconnect" onclick="disconnect()" class="stop" disabled>切断</button>
-        <div style="font-size:0.8em; color:#666; margin-top:5px;">
-            ※ブラウザからは ws:// または wss:// で始まるWebSocket接続のみ可能です。
+        <div style="font-size: 0.8em; color: #666; margin-top: 5px;">
+            ※ブラウザからは <code>ws://</code> または <code>wss://</code> で始まるWebSocket接続のみ可能です。
         </div>
     </div>
 
     <div class="box">
         <label>2. 受信設定 (Subscribe)</label>
-        <input type="text" id="subTopic" value="PBLALL"
-               placeholder="トピック名 (例: PBLALL)">
+        <input type="text" id="subTopic" value="PBLALL" placeholder="トピック名 (例: PBLALL)">
         <button id="btnSub" onclick="subscribe()" disabled>購読開始</button>
     </div>
 
     <div class="box">
         <label>3. 送信 (Publish)</label>
-        <input type="text" id="pubTopic" value="AXY99123/test"
-               placeholder="宛先トピック (例: AXY99123/test)">
-        <input type="text" id="pubMsg"
-               placeholder="メッセージ (例: Hello from PC)">
+        <input type="text" id="pubTopic" value="AXY99123/test" placeholder="宛先トピック (例: AXY99123/test)">
+        <input type="text" id="pubMsg" placeholder="メッセージ (例: Hello from PC)">
         <button id="btnPub" onclick="publish()" disabled>送信</button>
     </div>
 
@@ -62,13 +67,30 @@
             el.scrollTop = el.scrollHeight;
         }
 
+        function makeClientId() {
+            // 学籍番号 + crypto.randomUUID() の先頭8文字で重複を防ぐ
+            // crypto.randomUUID() は暗号学的に安全な乱数で UUID を生成するブラウザ標準API。
+            // Math.random() と異なり、値によって桁数が変わる問題がないため衝突の心配がない。
+            const studentId = document.getElementById('studentId').value.trim();
+            const prefix = studentId ? studentId : 'anon';
+            const rand = crypto.randomUUID().replace(/-/g, '').substring(0, 8);
+            return `WebClient_${prefix}_${rand}`;
+        }
+
         function connect() {
-            const url = document.getElementById('brokerUrl').value;
+            const url = document.getElementById('brokerUrl').value.trim();
+            if (!url) { log('⚠️ ブローカーURLを入力してください。', 'warn'); return; }
+
+            const studentId = document.getElementById('studentId').value.trim();
+            if (!studentId) {
+                log('⚠️ 学籍番号が未入力です。他の人とクライアントIDが重複する可能性があります。', 'warn');
+            }
+
+            const options = { clientId: makeClientId() };
             log(`接続中... ${url}`);
-            const options = {
-                clientId: 'WebClient_' + Math.random().toString(16).substr(2, 8)
-            };
+            log(`クライアントID: ${options.clientId}`);
             client = mqtt.connect(url, options);
+
             client.on('connect', () => {
                 log(`✅ 接続成功！ (ID: ${options.clientId})`);
                 document.getElementById('btnConnect').disabled = true;
@@ -76,13 +98,16 @@
                 document.getElementById('btnSub').disabled = false;
                 document.getElementById('btnPub').disabled = false;
             });
+
             client.on('message', (topic, message) => {
                 log(`📩 [${topic}]: ${message.toString()}`, 'recv');
             });
+
             client.on('error', (err) => {
                 log(`❌ エラー: ${err.message}`);
                 disconnect();
             });
+
             client.on('close', () => {
                 log('🔌 切断されました');
                 setDisconnectedState();
@@ -90,7 +115,10 @@
         }
 
         function disconnect() {
-            if (client) { client.end(); client = null; }
+            if (client) {
+                client.end();
+                client = null;
+            }
             setDisconnectedState();
         }
 
@@ -112,7 +140,7 @@
 
         function publish() {
             const topic = document.getElementById('pubTopic').value;
-            const msg   = document.getElementById('pubMsg').value;
+            const msg = document.getElementById('pubMsg').value;
             if (client && topic && msg) {
                 client.publish(topic, msg);
                 log(`📤 送信: ${topic} -> ${msg}`, 'sent');
